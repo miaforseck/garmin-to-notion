@@ -239,7 +239,43 @@ def create_activity(notion_client: NotionClient, database_id: str, activity: dic
     if icon_url:
         page["icon"] = {"type": "external", "external": {"url": icon_url}}
 
-    notion_client.pages.create(**page)
+    created = notion_client.pages.create(**page)
+    return created['id']
+
+
+def find_health_habits_row(client: NotionClient, database_id: str, activity_date_iso: str) -> dict | None:
+    """
+    Find the 'Salud y Hábitos' row for a given date.
+    """
+    query = client.databases.query(
+        database_id=database_id,
+        filter={"property": "Fecha", "date": {"equals": activity_date_iso}}
+    )
+    results = query.get('results', [])
+    return results[0] if results else None
+
+
+def link_activity_to_health_habits(
+    client: NotionClient, database_id: str, activity_date_iso: str, activity_page_id: str
+) -> None:
+    """
+    Link an activity page to the 'Salud y Hábitos' row via the 'Actividades Garmin'
+    relation. A day can have multiple activities, so we append instead of overwrite.
+    """
+    row = find_health_habits_row(client, database_id, activity_date_iso)
+    if not row:
+        print(f"No row found in 'Salud y Hábitos' for {activity_date_iso}; skipping activity link")
+        return
+
+    existing_ids = [r['id'] for r in row['properties'].get('Actividades Garmin', {}).get('relation', [])]
+    if activity_page_id in existing_ids:
+        return
+
+    client.pages.update(
+        page_id=row['id'],
+        properties={"Actividades Garmin": {"relation": [{"id": i} for i in existing_ids + [activity_page_id]]}}
+    )
+    print(f"Linked activity to 'Salud y Hábitos' row for {activity_date_iso}")
 
 
 def update_activity(notion_client: NotionClient, existing_activity: dict, new_activity: dict) -> None:
@@ -296,6 +332,7 @@ def main():
     notion_client, notion_dbs = get_notion_client()
 
     database_id = notion_dbs.activities
+    health_habits_db_id = notion_dbs.health_habits
 
     # Get all activities
     activities = get_all_activities(garmin_client, garmin_configuration.activity_fetch_limit)
@@ -319,12 +356,17 @@ def main():
         existing_activity = activity_exists(notion_client, database_id, activity_date, activity_type, activity_name)
 
         if existing_activity:
+            activity_page_id = existing_activity['id']
             if activity_needs_update(existing_activity, activity):
                 update_activity(notion_client, existing_activity, activity)
                 # print(f"Updated: {activity_type} - {activity_name}")
         else:
-            create_activity(notion_client, database_id, activity)
+            activity_page_id = create_activity(notion_client, database_id, activity)
             # print(f"Created: {activity_type} - {activity_name}")
+
+        link_activity_to_health_habits(
+            notion_client, health_habits_db_id, activity_date.date().isoformat(), activity_page_id
+        )
 
 
 if __name__ == '__main__':
