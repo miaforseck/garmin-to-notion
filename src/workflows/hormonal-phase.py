@@ -51,7 +51,7 @@ def main():
     data = get_menstrual_data(garmin_client)
     print(f"Raw Garmin menstrual data: {data}")
 
-    cycle_day = (data.get('cycleDayNumber') or data.get('dayNumber')) if data else None
+    cycle_day = (data or {}).get('daySummary', {}).get('dayInCycle')
     phase = phase_for_cycle_day(cycle_day)
 
     if phase is None:
