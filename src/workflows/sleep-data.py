@@ -50,15 +50,48 @@ def sleep_data_exists(client, database_id, sleep_date):
     return results[0] if results else None  # Ensure it returns None instead of causing IndexError
 
 
+def get_total_sleep_seconds(daily_sleep):
+    return sum(
+        (daily_sleep.get(k, 0) or 0) for k in ['deepSleepSeconds', 'lightSleepSeconds', 'remSleepSeconds']
+    )
+
+
+def find_health_habits_row(client, database_id, sleep_date):
+    """
+    Find the 'Salud y Hábitos' row for a given date.
+    """
+    query = client.databases.query(
+        database_id=database_id,
+        filter={"property": "Fecha", "date": {"equals": sleep_date}}
+    )
+    results = query.get('results', [])
+    return results[0] if results else None
+
+
+def update_health_habits_sleep(client, database_id, sleep_date, total_sleep_seconds):
+    """
+    Update the 'Sueño' text field on the 'Salud y Hábitos' row for a given date.
+    'Sueño' is a text property, so we write the human-readable duration.
+    """
+    row = find_health_habits_row(client, database_id, sleep_date)
+    if not row:
+        print(f"No row found in 'Salud y Hábitos' for {sleep_date}; skipping 'Sueño' update")
+        return
+
+    client.pages.update(
+        page_id=row['id'],
+        properties={"Sueño": {"rich_text": [{"text": {"content": format_duration(total_sleep_seconds)}}]}}
+    )
+    print(f"Updated 'Sueño' for {sleep_date}")
+
+
 def create_sleep_data(client, database_id, sleep_data, skip_zero_sleep=True):
     daily_sleep = sleep_data.get('dailySleepDTO', {})
     if not daily_sleep:
         return
 
     sleep_date = daily_sleep.get('calendarDate', "Unknown Date")
-    total_sleep = sum(
-        (daily_sleep.get(k, 0) or 0) for k in ['deepSleepSeconds', 'lightSleepSeconds', 'remSleepSeconds']
-    )
+    total_sleep = get_total_sleep_seconds(daily_sleep)
 
     if skip_zero_sleep and total_sleep == 0:
         print(f"Skipping sleep data for {sleep_date} as total sleep is 0")
@@ -96,12 +129,23 @@ def main():
     notion_client, notion_dbs = get_notion_client()
 
     database_id = notion_dbs.sleep
+    health_habits_db_id = notion_dbs.health_habits
 
     data = get_sleep_data(garmin_client)
-    if data:
-        sleep_date = data.get('dailySleepDTO', {}).get('calendarDate')
-        if sleep_date and not sleep_data_exists(notion_client, database_id, sleep_date):
-            create_sleep_data(notion_client, database_id, data, skip_zero_sleep=True)
+    if not data:
+        return
+
+    daily_sleep = data.get('dailySleepDTO', {})
+    sleep_date = daily_sleep.get('calendarDate')
+    if not sleep_date:
+        return
+
+    if not sleep_data_exists(notion_client, database_id, sleep_date):
+        create_sleep_data(notion_client, database_id, data, skip_zero_sleep=True)
+
+    total_sleep = get_total_sleep_seconds(daily_sleep)
+    if total_sleep > 0:
+        update_health_habits_sleep(notion_client, health_habits_db_id, sleep_date, total_sleep)
 
 
 if __name__ == '__main__':

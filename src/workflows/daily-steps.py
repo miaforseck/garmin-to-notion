@@ -92,7 +92,42 @@ def create_daily_steps(client, database_id, steps):
         "properties": properties,
     }
 
-    client.pages.create(**page)
+    created = client.pages.create(**page)
+    return created['id']
+
+
+def find_health_habits_row(client, database_id, activity_date):
+    """
+    Find the 'Salud y Hábitos' row for a given date.
+    """
+    query = client.databases.query(
+        database_id=database_id,
+        filter={"property": "Fecha", "date": {"equals": activity_date}}
+    )
+    results = query.get('results', [])
+    return results[0] if results else None
+
+
+def link_steps_to_health_habits(client, database_id, activity_date, steps_page_id):
+    """
+    Link the Daily Steps page for a date to the 'Salud y Hábitos' row via the
+    'Pasos' relation property. 'Pasos' is a relation field, not a number.
+    """
+    row = find_health_habits_row(client, database_id, activity_date)
+    if not row:
+        print(f"No row found in 'Salud y Hábitos' for {activity_date}; skipping 'Pasos' link")
+        return
+
+    existing_relation = row['properties'].get('Pasos', {}).get('relation', [])
+    existing_ids = [r['id'] for r in existing_relation]
+    if steps_page_id in existing_ids:
+        return
+
+    client.pages.update(
+        page_id=row['id'],
+        properties={"Pasos": {"relation": [{"id": steps_page_id}]}}
+    )
+    print(f"Linked steps page to 'Salud y Hábitos' row for {activity_date}")
 
 
 def main():
@@ -103,16 +138,20 @@ def main():
     notion_client, notion_dbs = get_notion_client()
 
     database_id = notion_dbs.daily_steps
+    health_habits_db_id = notion_dbs.health_habits
 
     daily_steps = get_all_daily_steps(garmin_client)
     for steps in daily_steps:
         steps_date = steps.get('calendarDate')
         existing_steps = daily_steps_exist(notion_client, database_id, steps_date)
         if existing_steps:
+            steps_page_id = existing_steps['id']
             if steps_need_update(existing_steps, steps):
                 update_daily_steps(notion_client, existing_steps, steps)
         else:
-            create_daily_steps(notion_client, database_id, steps)
+            steps_page_id = create_daily_steps(notion_client, database_id, steps)
+
+        link_steps_to_health_habits(notion_client, health_habits_db_id, steps_date, steps_page_id)
 
 
 if __name__ == '__main__':
