@@ -84,7 +84,8 @@ def create_daily_steps(client, database_id, steps):
         "Date": {"date": {"start": steps.get('calendarDate')}},
         "Total Steps": {"number": steps.get('totalSteps')},
         "Step Goal": {"number": steps.get('stepGoal')},
-        "Total Distance (km)": {"number": round(total_distance / 1000, 2)}
+        "Total Distance (km)": {"number": round(total_distance / 1000, 2)},
+        "Fuente": {"select": {"name": "Garmin"}}
     }
 
     page = {

@@ -224,7 +224,8 @@ def write_new_record(client, database_id, activity_date, activity_type, activity
         "Activity Type": {"select": {"name": activity_type}},
         "Record": {"title": [{"text": {"content": activity_name}}]},
         "typeId": {"number": typeId},
-        "PR": {"checkbox": True}
+        "PR": {"checkbox": True},
+        "Fuente": {"select": {"name": "Garmin"}}
     }
 
     if value:

@@ -227,7 +227,8 @@ def create_activity(notion_client: NotionClient, database_id: str, activity: dic
             "select": {"name": format_training_message(activity.get('anaerobicTrainingEffectMessage', 'Unknown'))}
         },
         "PR": {"checkbox": activity.get('pr', False)},
-        "Fav": {"checkbox": activity.get('favorite', False)}
+        "Fav": {"checkbox": activity.get('favorite', False)},
+        "Fuente": {"select": {"name": "Garmin"}}
     }
 
     page = {
