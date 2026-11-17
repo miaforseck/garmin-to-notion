@@ -41,5 +41,6 @@ jobs:
           uv run python -m src.workflows.personal-records
           uv run python -m src.workflows.daily-steps
           uv run python -m src.workflows.sleep-data
+          uv run python -m src.workflows.health-metrics
           uv run python -m src.workflows.hormonal-phase
 
