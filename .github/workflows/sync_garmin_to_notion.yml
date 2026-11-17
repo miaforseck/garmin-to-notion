@@ -2,7 +2,8 @@ name: Sync Garmin to Notion
 
 on:
   schedule:
-    - cron: '0 13 * * *' # Daily, 7:00 AM CDMX (UTC-6 standard time)
+    - cron: '0 12 * * *' # 6:00 AM CDMX (UTC-6)
+    - cron: '30 15 * * *' # 9:30 AM CDMX (UTC-6)
   workflow_dispatch:
     inputs:
       GARMIN_ACTIVITIES_FETCH_LIMIT:
